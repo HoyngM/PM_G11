@@ -1,0 +1,27 @@
+itemset,size,support
+close,1,1.0
+n1,1,0.747
+n10,1,0.772
+n2,1,0.712
+n3,1,0.757
+n4,1,0.739
+n5,1,0.741
+n6,1,0.745
+n7,1,0.755
+n8,1,0.745
+n9,1,0.742
+p,1,0.631
+q,1,0.631
+register,1,1.0
+x,1,0.801
+y,1,0.595
+close + register,2,1.0
+close + x,2,0.801
+register + x,2,0.801
+close + register + x,3,0.801
+n10 + register,2,0.772
+close + n10,2,0.772
+close + n10 + register,3,0.772
+n3 + register,2,0.757
+close + n3,2,0.757
+close + n3 + register,3,0.757
