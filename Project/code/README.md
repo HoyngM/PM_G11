@@ -1,6 +1,7 @@
 # Location permutation importance with Apriori and IMPresseD itemsets
 
 Group 11, Process Mining (JM0211): *Explainable Predictive Process Monitoring*.
+Authors: Jerrik Faber, Max Hoijng, Job Oosterkamp, Bora Şenel, Floris Vermeulen.
 
 This folder reproduces the location permutation importance of Vazifehdoostirani et al. (2024),
 *Uncovering the Hidden Significance of Activities Location in Predictive Process Monitoring*,
@@ -23,16 +24,20 @@ and marked `Original:` in the ported files (`auto_impid.py`, `tools.py`,
 
 ## Installation
 
-Python 3.10 or newer. From the folder that contains this README (`Project/code`):
+Python 3.12 or newer (tested with Python 3.14). From the root of the repository:
 
 ```bash
+cd Project/code
 python -m venv .venv
 source .venv/bin/activate          # Windows (PowerShell): .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-Tested with Python 3.14 and pm4py 2.7.23, mlxtend 0.25.0, paretoset 1.2.5, networkx 3.7,
-xgboost 3.4.1, scikit-learn 1.9.1, pandas 3.1.0, numpy 2.5.4, scipy 1.18.1, matplotlib 3.11.2.
+All commands below are run from `Project/code`. `requirements.txt` pins the versions we tested
+with (pm4py 2.7.23, mlxtend 0.25.0, paretoset 1.2.5, networkx 3.7, xgboost 3.4.1, scikit-learn 1.9.1,
+pandas 3.1.0, numpy 2.5.4, scipy 1.18.1, matplotlib 3.11.2); some of them need Python 3.12.
+If PowerShell refuses to run `Activate.ps1`, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+once, or call `.venv\Scripts\python.exe` directly instead of `python`.
 
 ## Running
 
@@ -41,17 +46,19 @@ python main.py
 ```
 
 This is the only entry point. It reads `config.yaml` and, for each of the six datasets
-(three BPIC11 logs, the synthetic log and two shuffled controls) and each of the three
+(three BPIC11 logs, the synthetic log and two shuffled controls) and each of the two
 strategies, selects the itemsets, measures their location importance and writes the results
 to `results/`. It then runs the selection on the simulated logs and compares it with the
-planted itemsets. The full run is long: on a laptop one BPIC11 log takes 7 to 11 minutes with
-`apriori` and 25 minutes or more with `impressed`; with the sensitivity setting
-`apriori_support0.2_top25` and laptop sleep our run took about 67 hours of wall-clock time. Use
-`--datasets` and `--strategies` to run parts. Options:
+planted itemsets. The BPIC11 logs take the longest: on a laptop BPIC11 f1 took about 5 minutes with
+`apriori` and about 10 minutes with `impressed`. Keep the laptop awake: the run pauses while it
+sleeps. Use `--datasets` and `--strategies` to run parts.
+
+**A run overwrites the files in `results/`** that it produces (and `results/summary.csv`, which then
+only lists the datasets of that run). Use `--output-directory` for test runs. Options:
 
 ```bash
 python main.py --datasets synthetic                                  # selected datasets or scenarios
-python main.py --strategies apriori impressed                        # selected strategies
+python main.py --strategies apriori                                  # selected strategies
 python main.py --datasets BPIC11_f1 --n-repeats 2 --max-itemsets 20  # quick look
 python main.py --k-fold 3 --output-directory results_test            # other settings / folder
 python -m pytest                                                     # unit tests (about 30 s)
@@ -115,8 +122,7 @@ the time), so there is no concurrency.
 
 The multi-activity itemsets are chosen exactly as in the reference (`mlxtend` Apriori, `min_support`
 0.5, `top_k` 10). As in the paper, every single activity is analysed as well. `max_length` is 3, the
-same as the longest IMPresseD pattern. The setting with support 0.2 and the top 25 itemsets is run as a
-sensitivity check. Apriori ignores the labels and selects on all cases.
+same as the longest IMPresseD pattern. Apriori ignores the labels and selects on all cases.
 
 ### IMPresseD (`auto_impid.py`, `imipd.py`)
 

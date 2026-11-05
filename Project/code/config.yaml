@@ -60,13 +60,6 @@ strategies:
     min_support: 0.5       # share of cases that must contain the itemset
     top_k: 10              # number of multi-activity itemsets that are kept
     max_length: 3          # largest itemset size, the same as for IMPresseD
-  # Sensitivity of the baseline: lower support, more itemsets.
-  - name: apriori_support0.2_top25
-    type: apriori
-    select_on: all
-    min_support: 0.2
-    top_k: 25
-    max_length: 3
   # Variant: Pareto-optimal patterns of IMPresseD (automatic mode), ordering relations dropped.
   - name: impressed
     type: impressed
