@@ -1,7 +1,8 @@
 """``DataManager``: event log, encoding, Apriori itemsets and location permutation.
 
 Ported from ``tools.py`` of https://github.com/MozhganVD/PermutationLocationImportance
-(Vazifehdoostirani et al., 2024); see DIFFERENCES.md. The event log is loaded and queried with pm4py.
+(Vazifehdoostirani et al., 2024); see the README for the differences. The event log is loaded and queried with pm4py.
+Our corrections of the original are marked ``Original:`` in the code.
 
 Vocabulary used throughout the code:
 
@@ -27,6 +28,8 @@ from mlxtend.frequent_patterns import apriori
 from mlxtend.preprocessing import TransactionEncoder
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold, train_test_split
+
+from extensions.fixed_locations import fixed_location_activities
 
 MIN_SHUFFLED_CASES = 3  # single activities: with fewer shuffled cases the importance counts as 0
 
@@ -76,7 +79,8 @@ class DataManager:
             activity: sorted(position + 1 for position in pm4py.get_activity_position_summary(self.data, activity))
             for activity in self.activities
         }
-        self.fixed_location_activities = self._find_fixed_location_activities()
+        # Our addition (extensions/fixed_locations.py): activities whose location never varies.
+        self.fixed_location_activities = fixed_location_activities(self.traces.values(), self.activities)
 
         # Case-level view: outcome and case attributes, taken from the first event of each case
         # (in the CSV these values are repeated on every event of the case).
@@ -108,7 +112,8 @@ class DataManager:
         # The traces are treated as totally ordered: the event number is used as the time, so
         # pm4py orders the events by event_nr and no two events of a case are simultaneous.
         # (event 1 -> 2000-01-01 00:00:01, event 2 -> 00:00:02, ...; the real BPIC11 timestamps
-        # only contain a date, so most events of a case would otherwise get the same time.)
+        # only contain a date and a set time, always 23:00 (e.g. "1/2/2005 23:00"), so 87-89% of
+        # consecutive events of a case would otherwise get the same time.)
         frame[self.time_col] = pd.Timestamp("2000-01-01") + pd.to_timedelta(frame[self.order], unit="s")
         # format_dataframe checks the columns, converts the time column and sorts by case and time.
         frame = pm4py.format_dataframe(frame, case_id=self.case_id, activity_key=self.activity,
@@ -123,23 +128,8 @@ class DataManager:
                                                         level="case", retain=False)
         return frame
 
-    def _find_fixed_location_activities(self) -> list[str]:
-        """Activities whose location never varies, so that their location cannot be important.
-
-        An activity has a fixed location if every occurrence in the log is at the same position
-        counted from the start (e.g. a start activity, always event 1) or at the same position
-        counted from the end (e.g. an end activity, always the last event, whatever the trace length).
-        """
-        from_start, from_end = {}, {}
-        for trace in self.traces.values():
-            for position, activity in enumerate(trace, start=1):
-                from_start.setdefault(activity, set()).add(position)
-                from_end.setdefault(activity, set()).add(len(trace) - position + 1)  # 1 = last event
-        return [activity for activity in self.activities
-                if len(from_start[activity]) == 1 or len(from_end[activity]) == 1]
-
     def __len__(self) -> int:
-        """Number of cases, so that ``len(data_manager)`` works."""
+        """Number of cases, so that len(data_manager) works."""
         return len(self.case_ids)
 
     @property
@@ -194,6 +184,7 @@ class DataManager:
         Every fold has about the same share of label 1 as the whole log; ``seed`` makes the
         folds reproducible.
         """
+        # Original: no random_state, so the folds differ between runs.
         splitter = StratifiedKFold(k_fold, shuffle=True, random_state=seed)
         train_dict, test_dict = {}, {}
         for i, (train_index, test_index) in enumerate(splitter.split(self.case_ids, self.labels)):
@@ -241,6 +232,7 @@ class DataManager:
                 importance = 0.0
                 if len(self.allowed_locations[act]) >= 2:  # otherwise there is no alternative location
                     # Fresh working copy of the original traces for every repetition.
+                    # Original: one copy for all activities and repetitions, so permutations pile up.
                     sub_data = {case: list(self.traces[case]) for case in case_list}
                     shuffled_cases = []
                     for row, case in enumerate(case_list):
@@ -269,6 +261,7 @@ class DataManager:
         for itemset in frequent_itemsets:
             for r in range(n_repeats):
                 # Fresh working copy of the original traces for every repetition.
+                # Original: one copy for all itemsets and repetitions, so permutations pile up.
                 sub_data = {case: list(self.traces[case]) for case in case_list}
                 shuffled_cases = []
                 for row, case in enumerate(case_list):
@@ -319,6 +312,8 @@ class DataManager:
         """
         # Every event keeps its original position as a label, so it can always be found again
         # after other events have moved: [(0, "a"), (1, "x"), (2, "b"), (3, "y")].
+        # Original: looks events up by their index before the move, which after earlier moves can
+        # point to a wrong event and break the order of the itemset.
         events = list(enumerate(sequence))
         # Every non-overlapping occurrence, e.g. [(0, 2)] for {a, b} in "a x b y".
         for idx in self.find_itemset_indexes(sequence, item_set):

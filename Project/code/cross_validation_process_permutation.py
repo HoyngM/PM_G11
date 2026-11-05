@@ -6,7 +6,7 @@ predictions get worse (lower F1 score), the model relied on the location of that
 its location is *important*. Importance = F1 before - F1 after the permutation.
 
 Ported from ``CrossValidation_ProcessPermutation.py`` of the permutation repository (see
-DIFFERENCES.md). Per fold an XGBoost model with default parameters is trained on the index
+the README). Per fold an XGBoost model with default parameters is trained on the index
 encoding of the training cases, and the importance is the drop in weighted F1 *on the held-out
 test cases of that fold*, repeated ``n_repeats`` times. Measuring on cases the model has not
 seen avoids that it simply recognises memorised training cases. Single activities use
@@ -27,6 +27,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from xgboost import XGBClassifier
 
+from extensions.fixed_locations import split_fixed_location_itemsets
 from tools import DataManager
 
 
@@ -49,7 +50,7 @@ class CrossValidationProcessPermutation:
         seed: seed of the fold split.
         random_state: seed of the permutations.
         exclude_fixed_locations: leave out itemsets with an activity whose location never varies
-            (``DataManager.fixed_location_activities``, e.g. a start or end activity).
+            (``extensions/fixed_locations.py``, e.g. a start or end activity).
     """
 
     def __init__(self, k_fold: int = 5, n_repeats: int = 10, constrain: bool = True,
@@ -60,11 +61,10 @@ class CrossValidationProcessPermutation:
 
     def run(self, data_manager: DataManager, itemsets: Sequence[frozenset[str]]) -> ImportanceResult:
         """Importance of every itemset in every fold and repetition, plus the model's F1 per fold."""
-        # An activity that is always at the same place cannot have an important location, and moving
-        # it would create unrealistic traces (e.g. "close" in the middle). Such itemsets are left out.
-        fixed = set(data_manager.fixed_location_activities) if self.exclude_fixed_locations else set()
-        excluded_itemsets = [itemset for itemset in itemsets if itemset & fixed]
-        itemsets = [itemset for itemset in itemsets if not itemset & fixed]
+        # Our addition (extensions/fixed_locations.py): itemsets with an activity that is always at
+        # the same place are left out.
+        fixed = data_manager.fixed_location_activities if self.exclude_fixed_locations else []
+        itemsets, excluded_itemsets = split_fixed_location_itemsets(itemsets, fixed)
         # Single activities and larger itemsets are permuted by different procedures.
         activities = [next(iter(itemset)) for itemset in itemsets if len(itemset) == 1]
         candidate_itemsets = [itemset for itemset in itemsets if len(itemset) > 1]
@@ -90,7 +90,7 @@ class CrossValidationProcessPermutation:
                            "test_f1": f1_score(test_y, model.predict(test_x), average="weighted")})
 
             # Importance on the held-out test cases of this fold: first the single activities,
-            # then the larger itemsets.
+            # then the larger itemsets. Original: measured on the training cases of the fold.
             fold_rows = data_manager.trace_permutation_importance(
                 model, test_x, test_y, test_cases, activities, constrain=self.constrain,
                 n_repeats=self.n_repeats, random_state=self.random_state)

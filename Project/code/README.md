@@ -16,8 +16,10 @@ location of the itemset is permuted (5-fold cross-validation, 10 repetitions). T
 the authors' repositories, <https://github.com/MozhganVD/PermutationLocationImportance> and
 <https://github.com/MozhganVD/InteractivePatternDetection>: the same file, class and function names
 (in PEP 8 style), with our additions for the assignment in `extensions/`. Event logs are loaded,
-cleaned and queried with [pm4py](https://pm4py.fit.fraunhofer.de/). Every difference with the
-authors' code is listed in [`DIFFERENCES.md`](./DIFFERENCES.md).
+cleaned and queried with [pm4py](https://pm4py.fit.fraunhofer.de/). The differences with the
+authors' code are described under [Method and implementation choices](#method-and-implementation-choices)
+and marked `Original:` in the ported files (`auto_impid.py`, `tools.py`,
+`cross_validation_process_permutation.py`).
 
 ## Installation
 
@@ -73,7 +75,7 @@ All parameters are in `config.yaml`; nothing has to be changed in the code. The 
 | `results/<dataset>/<strategy>_excluded_itemsets.json` | Selected itemsets that were not permuted because they contain a fixed-location activity (see below). |
 | `results/simulated/summary_simulated_mean.csv` | Recall of the planted itemsets per scenario and strategy, averaged over 10 simulated logs. |
 
-## Code and how it maps to the authors' repositories
+## Code and how it maps to the original repositories
 
 | Our file | Authors' file | Content |
 |---|---|---|
@@ -86,13 +88,14 @@ All parameters are in `config.yaml`; nothing has to be changed in the code. The 
 | `extensions/itemset_selection.py` | — | `AprioriSelector` and `ImpressedSelector` behind one interface. |
 | `extensions/synthetic_log.py`, `shuffle_controls.py` | — | Synthetic log with a planted location effect and its shuffled controls. |
 | `extensions/simulation.py`, `evaluation.py` | — | Simulated logs with a gold standard; overlap and recall of the selections. |
+| `extensions/fixed_locations.py` | — | Activities with a fixed location; the itemsets that are not permuted. |
 | `generate_data.py` | — | (Re)creates `data/synthetic/`. |
 
-The runtime flow of `main.py` is shown in [`main_flowchart.mmd`](./main_flowchart.mmd).
+The order of the work in `main.py` is described in its module docstring (`python main.py --help`).
 
 ## Method and implementation choices
 
-The main points; [`DIFFERENCES.md`](./DIFFERENCES.md) has the complete list with reasons.
+The choices we made and where our code differs from the authors' repositories.
 
 ### Event log (`tools.py`, `DataManager._load_df`)
 
@@ -103,7 +106,8 @@ occurs fewer than twice in the log are removed (`pm4py.get_event_attribute_value
 observed locations of every activity (`allowed_locations`, the feasible targets of a permutation)
 from `pm4py.get_activity_position_summary`.
 
-The BPIC11 timestamps only have a date: 89% of consecutive events in a case share their timestamp.
+The BPIC11 timestamps have a time, but it is always 23:00 (e.g. `1/2/2005 23:00`), so only the date
+carries information: 87-89% of consecutive events in a case share their timestamp.
 The traces are therefore treated as **totally ordered by `event_nr`** (the event number is used as
 the time), so there is no concurrency.
 
@@ -139,7 +143,7 @@ Index-based one-hot encoding, XGBoost with default parameters, 5-fold stratified
 Single activities use `trace_permutation_importance` (importance 0 when fewer than 3 cases change),
 larger itemsets `itemset_permutation_importance` with `shuffle_sequence`, which keeps the order of
 the activities of an itemset. Following the method as described in the papers, we correct three
-implementation issues of the authors' code (DIFFERENCES.md, P4 to P6):
+implementation issues of the authors' code:
 
 * The F1 drop is measured on the **held-out test cases** of each fold, not on the training cases,
   which the model has largely memorised.
@@ -154,7 +158,7 @@ reproducible.
 **Fixed-location activities.** An activity whose every occurrence is at the same position, counted
 from the start (e.g. `register`, always first) or from the end (e.g. `close`, always last, whatever the
 trace length), cannot have an important location, and moving it would create unrealistic traces. Such
-activities are detected from the data (`DataManager.fixed_location_activities`), and every itemset that
+activities are detected from the data (`extensions/fixed_locations.py`), and every itemset that
 contains one is left out of the permutation (`exclude_fixed_locations` in `config.yaml`; the excluded
 itemsets are listed in `<strategy>_excluded_itemsets.json`). On BPIC11 this only concerns a few rare
 activities with one or two events, which the feasibility constraint could not move anyway.
@@ -193,10 +197,8 @@ whether a strategy selects the planted itemsets at all.
 
 ## Results
 
-**The location importance must be rerun** with the corrected permutation (previous section); the
-importance values of the previous run (F1 drop on training cases, permutations piling up) are no longer
-reported here. The selection results and the model scores below do not depend on the permutation and
-stay valid. All numbers are in `results/summary.csv` and `results/<dataset>/`.
+All numbers below come from the corrected permutation (previous section) and are in
+`results/summary.csv` and `results/<dataset>/`.
 
 **Itemsets and model.**
 
@@ -208,8 +210,28 @@ stay valid. All numbers are in `results/summary.csv` and `results/<dataset>/`.
 
 Apriori and IMPresseD select almost entirely different multi-activity itemsets.
 
+**Location importance on BPIC11.** Mean F1 drop on the held-out cases of the most important itemset:
+
+| Dataset | Apriori | IMPresseD |
+|---|---|---|
+| BPIC11 f1 | 0.008 (`ac370000, ac370442, ac370443`) | 0.011 (`370407, ac370000, ac370401`) |
+| BPIC11 f2 | 0.122 (`376400`) | 0.129 (`376400, ac370000, ac370401`) |
+| BPIC11 f3 | 0.090 (`ac370000`) | 0.005 (`376400, ac370000, ac372417`) |
+
+* f1: no location matters much; the standard deviations are larger than the means.
+* f2: the location of `376400` matters (0.12, std 0.03). Both strategies find it; IMPresseD tests it
+  alone (0.121) and in 26 larger itemsets, which mostly inherit its importance (83 of its 175 itemsets
+  have a mean drop above 0.02, against 15 of 212 for Apriori).
+* f3: only the location of `ac370000` matters (0.09, std 0.03). Apriori tests it alone and finds it.
+  IMPresseD does not select it on its own, only in 21 larger itemsets, none of which gets more than
+  0.02, so it misses the effect, as it misses `b` in the synthetic log.
+
 **Synthetic log and controls (15 cases).** The model's test F1 is 0.65 on the synthetic log and 0.39 /
 0.42 on the two controls: the planted location effect is learnable, the controls carry no signal.
+Apriori, which tests every single activity, finds the planted activity `b` (mean F1 drop 0.21; next
+best 0.07). IMPresseD does not select `b` on its own, because `b` occurs in every case, and its only
+pair with `b`, `{b, register}`, is excluded because `register` is always first; its most important
+itemset gets 0.03. In the controls no itemset gets more than 0.05.
 
 **Simulated logs (10 logs per scenario).** All strategies find the existence effect `y` in every log.
 The location effect `x` is selected in every log, except by IMPresseD in the rare-pair scenario (8 of
@@ -229,13 +251,13 @@ imipd.py                                  IMPresseD functions (interests, patter
 auto_impid.py                             automatic IMPresseD discovery
 generate_data.py                          (re)creates data/synthetic/
 requirements.txt
-DIFFERENCES.md                            differences with the authors' repositories
 data/                                     BPIC11 logs, synthetic/ (synthetic log and two controls)
 results/                                  all outputs (ignored by git)
 extensions/                               our additions for the assignment
     itemset_selection.py                  AprioriSelector, ImpressedSelector
     synthetic_log.py, shuffle_controls.py synthetic log and negative controls
     simulation.py, evaluation.py          simulated logs, gold standard, overlap and recall
+    fixed_locations.py                    fixed-location activities, excluded itemsets
 tests/                                    unit tests (python -m pytest)
 ```
 

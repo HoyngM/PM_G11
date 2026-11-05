@@ -1,7 +1,7 @@
 """IMPresseD pattern discovery: interest functions and pattern extension.
 
 Ported from ``IMIPD.py`` and ``tools.py`` of https://github.com/MozhganVD/InteractivePatternDetection
-(Vazifehdoostirani et al., 2023); see DIFFERENCES.md. ``auto_impid.py`` uses these functions for the
+(Vazifehdoostirani et al., 2023); ``auto_impid.py`` uses these functions for the
 automatic discovery.
 
 Main ideas:
@@ -183,11 +183,6 @@ def describe_pattern(pattern: nx.DiGraph) -> str:
     for left, right in zip(order, order[1:]):  # every pair of neighbouring events in the chain
         text += (" => " if pattern.edges[left, right]["eventually"] else " -> ") + pattern.nodes[right]["value"]
     return text
-
-
-def has_eventual_relation(pattern: nx.DiGraph) -> bool:
-    """True if at least one pair of neighbouring events is related eventually (not directly)."""
-    return any(nx.get_edge_attributes(pattern, "eventually").values())
 
 
 class PatternsDictionary(dict):
