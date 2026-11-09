@@ -24,7 +24,7 @@ and marked `Original:` in the ported files (`auto_impid.py`, `tools.py`,
 
 ## Installation
 
-Python 3.12 or newer (tested with Python 3.14). From the root of the repository:
+Python 3.12 or newer (tested with Python 3.13 and 3.14). From the root of the repository:
 
 ```bash
 python -m venv .venv
@@ -48,9 +48,11 @@ This is the only entry point. It reads `config.yaml` and, for each of the six da
 (three BPIC11 logs, the synthetic log and two shuffled controls) and each of the two
 strategies, selects the itemsets, measures their location importance and writes the results
 to `results/`. It then runs the selection on the simulated logs and compares it with the
-planted itemsets. The BPIC11 logs take the longest: on a laptop BPIC11 f1 took about 5 minutes with
-`apriori` and about 10 minutes with `impressed`. Keep the laptop awake: the run pauses while it
-sleeps. Use `--datasets` and `--strategies` to run parts.
+planted itemsets. The BPIC11 logs take the longest. The permutation step of a full run took, on a laptop,
+25 s (`apriori`) and 93 s (`impressed`) for BPIC11 f1, 40 s and 298 s for f2, and 12 s and 50 s for f3
+(`impressed` is 4 to 7 times slower, although it tests fewer itemsets, because its itemsets are larger);
+the whole run, including the selection and the simulated logs, takes a few tens of minutes.
+Keep the laptop awake: the run pauses while it sleeps. Use `--datasets` and `--strategies` to run parts.
 
 **A run overwrites the files in `results/`** that it produces (and `results/summary.csv`, which then
 only lists the datasets of that run). Use `--output-directory` for test runs. Options:
@@ -207,11 +209,14 @@ All numbers below come from the corrected permutation (previous section) and are
 
 **Itemsets and model.**
 
-| Dataset | Cases | Model F1 train / test | Itemsets apriori (sizes 1/2/3) | Itemsets impressed (sizes 1/2/3) | Overlap of 2+ itemsets (Jaccard) |
+"Selected" is the number of itemsets chosen by the strategy (sizes 1/2/3 in brackets). "Tested" is the
+number that is permuted: the selected itemsets minus those with a fixed-location activity (see above).
+
+| Dataset | Cases | Model F1 train / test | Apriori: selected (sizes) / tested | IMPresseD: selected (sizes) / tested | Overlap of 2+ itemsets (Jaccard) |
 |---|---|---|---|---|---|
-| BPIC11 f1 | 1130 | 0.994 / 0.907 | 174 (164/7/3) | 154 (18/88/48) | 0.02 |
-| BPIC11 f2 | 1130 | 0.994 / 0.895 | 217 (207/7/3) | 176 (35/83/58) | 0.02 |
-| BPIC11 f3 | 1111 | 0.995 / 0.934 | 161 (156/4/1) | 142 (22/82/38) | 0.00 |
+| BPIC11 f1 | 1130 | 0.994 / 0.907 | 174 (164/7/3) / 170 | 154 (18/88/48) / 152 | 0.02 |
+| BPIC11 f2 | 1130 | 0.994 / 0.895 | 217 (207/8/2) / 212 | 176 (35/83/58) / 175 | 0.03 |
+| BPIC11 f3 | 1111 | 0.995 / 0.934 | 161 (156/4/1) / 158 | 142 (22/82/38) / 140 | 0.00 |
 
 Apriori and IMPresseD select almost entirely different multi-activity itemsets.
 
@@ -219,14 +224,14 @@ Apriori and IMPresseD select almost entirely different multi-activity itemsets.
 
 | Dataset | Apriori | IMPresseD |
 |---|---|---|
-| BPIC11 f1 | 0.007 (`ac370000, ac370442, ac370443`) | 0.011 (`370407, ac370000, ac370401`) |
+| BPIC11 f1 | 0.007 (`ac379999`) | 0.011 (`370407, ac370000, ac370401`) |
 | BPIC11 f2 | 0.122 (`376400`) | 0.129 (`376400, ac370000, ac370401`) |
 | BPIC11 f3 | 0.090 (`ac370000`) | 0.005 (`376400, ac370000, ac372417`) |
 
 * f1: no location matters much; the standard deviations are larger than the means.
 * f2: the location of `376400` matters (0.12, std 0.03). Both strategies find it; IMPresseD tests it
   alone (0.121) and in 26 larger itemsets, which mostly inherit its importance (83 of its 175 itemsets
-  have a mean drop above 0.02, against 15 of 212 for Apriori).
+  have a mean drop above 0.02, against 14 of 212 for Apriori).
 * f3: only the location of `ac370000` matters (0.09, std 0.03). Apriori tests it alone and finds it.
   IMPresseD does not select it on its own, only in 21 larger itemsets, none of which gets more than
   0.02, so it misses the effect, as it misses `b` in the synthetic log.
