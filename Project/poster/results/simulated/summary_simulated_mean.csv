@@ -1,5 +1,0 @@
-scenario,strategy,itemsets,location_recall,existence_recall,noise_only_share
-SIM_frequent_pair,apriori,26.0,0.5,1.0,0.731
-SIM_frequent_pair,impressed,77.3,0.5,1.0,0.495
-SIM_rare_pair,apriori,26.0,0.5,1.0,0.731
-SIM_rare_pair,impressed,79.0,0.4,1.0,0.508
