@@ -220,7 +220,7 @@ Apriori and IMPresseD select almost entirely different multi-activity itemsets.
 
 | Dataset | Apriori | IMPresseD |
 |---|---|---|
-| BPIC11 f1 | 0.008 (`ac370000, ac370442, ac370443`) | 0.011 (`370407, ac370000, ac370401`) |
+| BPIC11 f1 | 0.007 (`ac370000, ac370442, ac370443`) | 0.011 (`370407, ac370000, ac370401`) |
 | BPIC11 f2 | 0.122 (`376400`) | 0.129 (`376400, ac370000, ac370401`) |
 | BPIC11 f3 | 0.090 (`ac370000`) | 0.005 (`376400, ac370000, ac372417`) |
 
